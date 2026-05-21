@@ -297,15 +297,15 @@ def test_align_service_accepts_wrapped_task_result(client: TestClient) -> None:
         "error": None,
     }
 
-    with (
-        tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf,
-        open(AUDIO_FILE, "rb") as audio_file,
-    ):
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
         json.dump(wrapped, tf)
-        tf.flush()
-        tf.seek(0)
+        temp_path = tf.name
 
-        with open(tf.name, "rb") as wrapped_fp:
+    try:
+        with (
+            open(temp_path, "rb") as wrapped_fp,
+            open(AUDIO_FILE, "rb") as audio_file,
+        ):
             response = client.post(
                 f"/service/align?device={os.getenv('DEVICE')}",
                 files={
@@ -313,6 +313,8 @@ def test_align_service_accepts_wrapped_task_result(client: TestClient) -> None:
                     "file": ("audio_file.mp3", audio_file),
                 },
             )
+    finally:
+        os.unlink(temp_path)
 
     assert response.status_code == 200, response.text
     assert "Task queued" in response.json()["message"]

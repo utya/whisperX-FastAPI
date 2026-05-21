@@ -78,13 +78,13 @@ def _parse_transcript_payload(payload: bytes) -> Transcript:
     """
     try:
         data = json.loads(payload)
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
         logger.error("Transcript file is not valid JSON: %s", str(e))
         raise ValidationError(
-            message=f"Transcript file is not valid JSON: {str(e)}",
+            message=f"Transcript file is not valid JSON: {e!s}",
             code="INVALID_TRANSCRIPT_JSON",
             user_message="The transcript file contains invalid JSON.",
-        )
+        ) from e
 
     # Auto-unwrap the GET /task/{id} envelope when the user uploads it as-is.
     if (
@@ -99,10 +99,10 @@ def _parse_transcript_payload(payload: bytes) -> Transcript:
     except (PydanticValidationError, TypeError) as e:
         logger.error("Invalid JSON content in transcript file: %s", str(e))
         raise ValidationError(
-            message=f"Invalid JSON content in transcript file: {str(e)}",
+            message=f"Invalid JSON content in transcript file: {e!s}",
             code="INVALID_TRANSCRIPT_JSON",
             user_message="The transcript file contains invalid JSON.",
-        )
+        ) from e
 
 
 @service_router.post(
@@ -230,7 +230,7 @@ async def align(
 
     file_service.validate_file_extension(transcript.filename, {JSON_EXTENSION})
 
-    transcript_data = _parse_transcript_payload(transcript.file.read())
+    transcript_data = _parse_transcript_payload(await transcript.read())
 
     # Validate and save audio file
     if file.filename is None:
