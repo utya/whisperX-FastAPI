@@ -16,7 +16,10 @@ from whisperx.diarize import DiarizationPipeline
 
 from app.callbacks import post_task_callback
 from app.core.config import Config
+from app.core.exceptions import TaskCancelledError
+from app.core.gpu_cleanup import release_gpu_resources
 from app.core.logging import logger
+from app.core.task_cancellation import clear_cancellation, is_cancelled
 from app.domain.services.alignment_service import IAlignmentService
 from app.domain.services.diarization_service import IDiarizationService
 from app.domain.services.speaker_assignment_service import ISpeakerAssignmentService
@@ -32,10 +35,39 @@ from app.schemas import (
     Metadata,
     Result,
     SpeechToTextProcessingParams,
+    TaskStage,
     TaskStatus,
     WhisperModel,
 )
-from app.transcript import filter_aligned_transcription
+from app.transcript import (
+    extract_raw_text_from_transcript,
+    filter_aligned_transcription,
+)
+
+
+def _update_stage(
+    repository: SyncSQLAlchemyTaskRepository,
+    identifier: str,
+    stage: TaskStage,
+    **extra: object,
+) -> None:
+    """Persist the current pipeline stage for polling clients."""
+    repository.update(
+        identifier=identifier,
+        update_data={"current_stage": stage.value, **extra},
+    )
+
+
+def _ensure_not_cancelled(
+    repository: SyncSQLAlchemyTaskRepository,
+    identifier: str,
+) -> None:
+    """Raise when the task was cancelled via API or DB status."""
+    if is_cancelled(identifier):
+        raise TaskCancelledError(identifier)
+    task = repository.get_by_id(identifier)
+    if task is not None and task.status == TaskStatus.cancelled:
+        raise TaskCancelledError(identifier)
 
 
 def transcribe_with_whisper(
@@ -312,8 +344,10 @@ def process_audio_common(
                 update_data={
                     "status": TaskStatus.processing,
                     "start_time": start_time,
+                    "current_stage": TaskStage.transcribing.value,
                 },
             )
+            _ensure_not_cancelled(repository, params.identifier)
             logger.info(
                 "Starting speech-to-text processing for identifier: %s",
                 params.identifier,
@@ -347,6 +381,15 @@ def process_audio_common(
                 threads=params.whisper_model_params.threads,
             )
 
+            partial_text = extract_raw_text_from_transcript(segments_before_alignment)
+            _update_stage(
+                repository,
+                params.identifier,
+                TaskStage.aligning,
+                partial_text=partial_text,
+            )
+            _ensure_not_cancelled(repository, params.identifier)
+
             logger.debug(
                 "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
                 params.alignment_params.align_model,
@@ -367,6 +410,9 @@ def process_audio_common(
             # removing words within each segment that have missing start, end, or score values
             filtered_transcript = filter_aligned_transcription(transcript)
             transcript_dict = filtered_transcript.model_dump()
+
+            _update_stage(repository, params.identifier, TaskStage.diarizing)
+            _ensure_not_cancelled(repository, params.identifier)
 
             logger.debug(
                 "Diarization parameters - device: %s, min_speakers: %s, max_speakers: %s",
@@ -404,6 +450,16 @@ def process_audio_common(
                     auto_store=params.diarization_params.auto_store_speakers,
                 )
 
+            speaker_labels = diarization_result.unique_speaker_labels()
+            _update_stage(
+                repository,
+                params.identifier,
+                TaskStage.combining,
+                partial_speaker_count=diarization_result.speaker_count(),
+                partial_speakers=speaker_labels,
+            )
+            _ensure_not_cancelled(repository, params.identifier)
+
             logger.debug("Starting to combine transcript with diarization results")
             result = speaker_svc.assign_speakers(
                 diarization_result.segments,
@@ -429,7 +485,14 @@ def process_audio_common(
                     "duration": duration,
                     "start_time": start_time,
                     "end_time": end_time,
+                    "current_stage": None,
                 },
+            )
+
+        except TaskCancelledError:
+            logger.info(
+                "Speech-to-text processing cancelled for identifier: %s",
+                params.identifier,
             )
 
         except (RuntimeError, ValueError, KeyError) as e:
@@ -469,9 +532,12 @@ def process_audio_common(
             )
 
         finally:
+            if use_semaphore:
+                release_gpu_resources()
             if gpu_semaphore is not None:
                 gpu_semaphore.release()
                 logger.info("GPU slot released for task %s", params.identifier)
+            clear_cancellation(params.identifier)
 
     finally:
         try:
@@ -491,7 +557,12 @@ def process_audio_common(
                         end_time=task.end_time,
                     )
                     result_payload = Result(
+                        identifier=task.uuid,
                         status=task.status,
+                        current_stage=task.current_stage,
+                        partial_text=task.partial_text,
+                        partial_speaker_count=task.partial_speaker_count,
+                        partial_speakers=task.partial_speakers,
                         result=task.result,
                         metadata=metadata,
                         error=task.error,

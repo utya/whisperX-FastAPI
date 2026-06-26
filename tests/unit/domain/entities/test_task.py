@@ -84,6 +84,14 @@ class TestTaskEntity:
         assert task.start_time == start_time
         assert task.updated_at is not None
 
+    def test_mark_as_cancelled(self) -> None:
+        """Test marking a task as cancelled updates status and end time."""
+        task = TaskFactory(status="processing")
+        task.mark_as_cancelled()
+        assert task.status == "cancelled"
+        assert task.is_cancelled() is True
+        assert task.end_time is not None
+
     def test_is_processing_returns_true_for_processing_task(self) -> None:
         """Test is_processing returns True for processing tasks."""
         task = TaskFactory(status="processing")

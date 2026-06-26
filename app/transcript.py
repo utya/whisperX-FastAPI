@@ -1,6 +1,20 @@
 """This module provides functions to filter aligned transcriptions."""
 
+from typing import Any
+
 from app.schemas import AlignedTranscription, AlignmentSegment
+
+
+def extract_raw_text_from_transcript(transcript: dict[str, Any]) -> str:
+    """Build a single raw text string from a WhisperX transcript dict."""
+    text = str(transcript.get("text", "")).strip()
+    if text:
+        return text
+    return " ".join(
+        str(segment.get("text", "")).strip()
+        for segment in transcript.get("segments", [])
+        if str(segment.get("text", "")).strip()
+    )
 
 
 def filter_aligned_transcription(

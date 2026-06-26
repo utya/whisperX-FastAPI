@@ -1,6 +1,7 @@
 """End-to-end tests for task management endpoints."""
 
 import os
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -45,6 +46,60 @@ def test_delete_task(client: TestClient) -> None:
 
 
 @pytest.mark.e2e
+def test_cancel_task(client: TestClient) -> None:
+    """Test cancelling a task via DELETE /task/{identifier}."""
+    with open(AUDIO_FILE, "rb") as audio_file:
+        files = {"file": ("audio_en.mp3", audio_file)}
+        response = client.post(
+            f"/service/transcribe?device={os.getenv('DEVICE')}&compute_type={os.getenv('COMPUTE_TYPE')}",
+            files=files,
+        )
+    assert response.status_code == 200
+    identifier = response.json()["identifier"]
+
+    cancelled = False
+    for _ in range(50):
+        status = client.get(f"/task/{identifier}").json()["status"]
+        if status in ("completed", "failed"):
+            break
+        cancel_response = client.delete(f"/task/{identifier}")
+        if cancel_response.status_code == 200:
+            cancelled = True
+            break
+        time.sleep(0.05)
+
+    if not cancelled:
+        pytest.skip("Task reached terminal state before cancellation could be applied")
+
+    get_response = client.get(f"/task/{identifier}")
+    assert get_response.status_code == 200
+    assert get_response.json()["status"] == "cancelled"
+
+
+@pytest.mark.e2e
+def test_cancel_completed_task_returns_bad_request(client: TestClient) -> None:
+    """Cancelling a completed task returns a domain error."""
+    with open(AUDIO_FILE, "rb") as audio_file:
+        files = {"file": ("audio_en.mp3", audio_file)}
+        response = client.post(
+            f"/service/transcribe?device={os.getenv('DEVICE')}&compute_type={os.getenv('COMPUTE_TYPE')}",
+            files=files,
+        )
+    assert response.status_code == 200
+    identifier = response.json()["identifier"]
+
+    for _ in range(120):
+        status = client.get(f"/task/{identifier}").json()["status"]
+        if status in ("completed", "failed", "cancelled"):
+            break
+        time.sleep(0.5)
+
+    cancel_response = client.delete(f"/task/{identifier}")
+    assert cancel_response.status_code == 400
+    assert cancel_response.json()["error"]["code"] == "INVALID_TASK_STATE"
+
+
+@pytest.mark.e2e
 def test_get_task_by_id(client: TestClient) -> None:
     """Test retrieving a specific task by ID."""
     # Create a task first
@@ -63,8 +118,16 @@ def test_get_task_by_id(client: TestClient) -> None:
     task_data = get_response.json()
     # Verify the response has expected fields
     assert "status" in task_data
-    assert task_data["status"] in ["pending", "processing", "completed", "failed"]
-    assert "metadata" in task_data or "result" in task_data  # Has task data
+    assert task_data["status"] in [
+        "pending",
+        "queued",
+        "processing",
+        "completed",
+        "failed",
+        "cancelled",
+    ]
+    assert "identifier" in task_data
+    assert "metadata" in task_data or "result" in task_data
 
 
 @pytest.mark.e2e

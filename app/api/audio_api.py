@@ -33,6 +33,7 @@ from app.schemas import (
     Response,
     SpeechToTextProcessingParams,
     TaskStatus,
+    TaskStage,
     TaskType,
     VADOptions,
     WhisperModelParams,
@@ -105,6 +106,7 @@ async def speech_to_text(
     task = DomainTask(
         uuid=str(uuid4()),
         status=TaskStatus.queued,
+        current_stage=TaskStage.queued.value,
         file_name=file.filename,
         audio_duration=audio_duration,
         language=model_params.language,
@@ -192,6 +194,7 @@ async def speech_to_text_url(
     task = DomainTask(
         uuid=str(uuid4()),
         status=TaskStatus.queued,
+        current_stage=TaskStage.queued.value,
         file_name=filename,
         audio_duration=get_audio_duration(audio),
         language=model_params.language,

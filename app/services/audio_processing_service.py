@@ -13,6 +13,7 @@ from app.core.exceptions import (
     TranscriptionFailedError,
     ValidationError,
 )
+from app.core.gpu_cleanup import release_gpu_resources
 from app.core.logging import logger
 from app.domain.services.alignment_service import IAlignmentService
 from app.domain.services.diarization_service import IDiarizationService
@@ -266,6 +267,8 @@ def process_audio_task(
                 update_data={"status": TaskStatus.failed, "error": str(e)},
             )
         finally:
+            if use_gpu_semaphore:
+                release_gpu_resources()
             if gpu_semaphore is not None:
                 gpu_semaphore.release()
                 logger.info("GPU slot released for task %s", identifier)
