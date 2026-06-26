@@ -15,3 +15,9 @@ def ensure_task_schema(connection: Connection) -> None:
         connection.execute(text("ALTER TABLE tasks ADD COLUMN current_stage VARCHAR"))
     if "partial_text" not in columns:
         connection.execute(text("ALTER TABLE tasks ADD COLUMN partial_text TEXT"))
+    if "partial_speaker_count" not in columns:
+        connection.execute(
+            text("ALTER TABLE tasks ADD COLUMN partial_speaker_count INTEGER")
+        )
+    if "partial_speakers" not in columns:
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN partial_speakers JSON"))

@@ -50,6 +50,14 @@ class Task(Base):
     partial_text: Mapped[str | None] = mapped_column(
         String, nullable=True, comment="Raw transcript text after transcribe completes"
     )
+    partial_speaker_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="Distinct speaker count after diarization"
+    )
+    partial_speakers: Mapped[list[str] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Speaker labels or identified names after diarization",
+    )
     result: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, comment="JSON data representing the result of the task"
     )

@@ -161,6 +161,8 @@ class Result(BaseModel):
     status: str
     current_stage: str | None = None
     partial_text: str | None = None
+    partial_speaker_count: int | None = None
+    partial_speakers: list[str] | None = None
     result: Any
     metadata: Metadata | None = None
     error: str | None

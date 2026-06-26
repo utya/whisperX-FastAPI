@@ -131,7 +131,12 @@ def test_process_audio_common_persists_partial_text_after_transcribe(
 
     diarization_svc = MagicMock()
     diarization_svc.diarize.return_value = DiarizationResult(
-        segments=pd.DataFrame([{"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]),
+        segments=pd.DataFrame(
+            [
+                {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"},
+                {"start": 1.0, "end": 2.0, "speaker": "SPEAKER_01"},
+            ]
+        ),
         speaker_embeddings=None,
     )
 
@@ -161,6 +166,97 @@ def test_process_audio_common_persists_partial_text_after_transcribe(
         partial_update.kwargs["update_data"]["current_stage"]
         == TaskStage.aligning.value
     )
+
+    speaker_update = next(
+        call
+        for call in repository.update.call_args_list
+        if call.kwargs["update_data"].get("partial_speaker_count") == 2
+    )
+    assert (
+        speaker_update.kwargs["update_data"]["current_stage"]
+        == TaskStage.combining.value
+    )
+    assert speaker_update.kwargs["update_data"]["partial_speakers"] == [
+        "SPEAKER_00",
+        "SPEAKER_01",
+    ]
+
+
+@pytest.mark.unit
+@patch("app.services.audio_processing_service._identify_and_store_speakers")
+@patch("app.services.whisperx_wrapper_service.release_gpu_resources")
+@patch("app.services.whisperx_wrapper_service.SyncSessionLocal")
+def test_process_audio_common_persists_identified_speaker_labels(
+    mock_session_local: MagicMock,
+    mock_release_gpu: MagicMock,
+    mock_identify: MagicMock,
+) -> None:
+    """Identified speaker names are exposed before the final result."""
+    session = MagicMock()
+    mock_session_local.return_value = session
+    repository = MagicMock()
+    repository.get_by_id.return_value = None
+
+    transcription_svc = MagicMock()
+    transcription_svc.transcribe.return_value = {
+        "language": "en",
+        "segments": [{"start": 0.0, "end": 1.0, "text": "Hello."}],
+    }
+    alignment_svc = MagicMock()
+    alignment_svc.align.return_value = {
+        "segments": [
+            {
+                "start": 0.0,
+                "end": 1.0,
+                "text": "Hello.",
+                "words": [
+                    {"word": "Hello.", "start": 0.0, "end": 1.0, "score": 0.9},
+                ],
+            }
+        ],
+        "word_segments": [],
+    }
+
+    diarization_result = DiarizationResult(
+        segments=pd.DataFrame([{"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"}]),
+        speaker_embeddings={"SPEAKER_00": [0.1, 0.2]},
+    )
+    diarization_svc = MagicMock()
+    diarization_svc.diarize.return_value = diarization_result
+
+    identified_result = DiarizationResult(
+        segments=pd.DataFrame([{"start": 0.0, "end": 1.0, "speaker": "Ivan"}]),
+        speaker_embeddings={"Ivan": [0.1, 0.2]},
+    )
+    mock_identify.return_value = identified_result
+
+    speaker_svc = MagicMock()
+    speaker_svc.assign_speakers.return_value = {
+        "segments": [{"text": "Hello.", "speaker": "Ivan"}]
+    }
+
+    params = _build_params()
+    params.diarization_params.identify_speakers = True
+
+    with patch(
+        "app.services.whisperx_wrapper_service.SyncSQLAlchemyTaskRepository",
+        return_value=repository,
+    ):
+        process_audio_common(
+            params,
+            transcription_service=transcription_svc,
+            alignment_service=alignment_svc,
+            diarization_service=diarization_svc,
+            speaker_service=speaker_svc,
+        )
+
+    speaker_update = next(
+        call
+        for call in repository.update.call_args_list
+        if call.kwargs["update_data"].get("partial_speaker_count") == 1
+    )
+    assert speaker_update.kwargs["update_data"]["partial_speakers"] == ["Ivan"]
+    mock_identify.assert_called_once()
 
 
 @pytest.mark.unit

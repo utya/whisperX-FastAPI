@@ -18,6 +18,8 @@ class Task:
         status: Current status of the task (queued, processing, completed, failed, cancelled)
         current_stage: Pipeline stage (queued, transcribing, aligning, diarizing, combining)
         partial_text: Raw transcript text available after transcribe completes
+        partial_speaker_count: Number of distinct speakers after diarization
+        partial_speakers: Speaker labels (or identified names) after diarization
         task_type: Type/category of the task
         result: JSON data representing the result of the task
         file_name: Name of the file associated with the task
@@ -39,6 +41,8 @@ class Task:
     task_type: str
     current_stage: str | None = None
     partial_text: str | None = None
+    partial_speaker_count: int | None = None
+    partial_speakers: list[str] | None = None
     result: dict[str, Any] | None = None
     file_name: str | None = None
     url: str | None = None
@@ -161,6 +165,8 @@ class Task:
             "status": self.status,
             "current_stage": self.current_stage,
             "partial_text": self.partial_text,
+            "partial_speaker_count": self.partial_speaker_count,
+            "partial_speakers": self.partial_speakers,
             "task_type": self.task_type,
             "result": self.result,
             "file_name": self.file_name,
