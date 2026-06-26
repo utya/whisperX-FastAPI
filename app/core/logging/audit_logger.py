@@ -128,6 +128,22 @@ class AuditLogger:
         )
 
     @staticmethod
+    def log_task_cancelled(
+        task_id: str,
+    ) -> None:
+        """Log task cancellation event.
+
+        Args:
+            task_id: Unique task identifier
+        """
+        AuditLogger.log_event(
+            event_type=AuditEventType.TASK_CANCELLED,
+            resource_type="task",
+            resource_id=task_id,
+            action="cancel",
+        )
+
+    @staticmethod
     def log_file_uploaded(
         file_name: str,
         file_size: int,
