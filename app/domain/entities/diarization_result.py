@@ -22,6 +22,16 @@ class DiarizationResult:
         """Check if embeddings are available."""
         return self.speaker_embeddings is not None
 
+    def unique_speaker_labels(self) -> list[str]:
+        """Return sorted unique speaker labels detected in the diarization."""
+        if "speaker" not in self.segments.columns:
+            return []
+        return sorted(self.segments["speaker"].dropna().unique().tolist())
+
+    def speaker_count(self) -> int:
+        """Return the number of distinct speakers in the diarization."""
+        return len(self.unique_speaker_labels())
+
     def to_serializable(self) -> dict[str, Any] | list[Any]:
         """Convert to JSON-serializable format for task result storage.
 

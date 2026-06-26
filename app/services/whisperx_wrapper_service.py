@@ -450,7 +450,14 @@ def process_audio_common(
                     auto_store=params.diarization_params.auto_store_speakers,
                 )
 
-            _update_stage(repository, params.identifier, TaskStage.combining)
+            speaker_labels = diarization_result.unique_speaker_labels()
+            _update_stage(
+                repository,
+                params.identifier,
+                TaskStage.combining,
+                partial_speaker_count=diarization_result.speaker_count(),
+                partial_speakers=speaker_labels,
+            )
             _ensure_not_cancelled(repository, params.identifier)
 
             logger.debug("Starting to combine transcript with diarization results")
@@ -554,6 +561,8 @@ def process_audio_common(
                         status=task.status,
                         current_stage=task.current_stage,
                         partial_text=task.partial_text,
+                        partial_speaker_count=task.partial_speaker_count,
+                        partial_speakers=task.partial_speakers,
                         result=task.result,
                         metadata=metadata,
                         error=task.error,

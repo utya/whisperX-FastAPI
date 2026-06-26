@@ -66,6 +66,8 @@ async def get_transcription_status(
         status=task.status,
         current_stage=task.current_stage,
         partial_text=task.partial_text,
+        partial_speaker_count=task.partial_speaker_count,
+        partial_speakers=task.partial_speakers,
         result=task.result,
         metadata=Metadata(
             task_type=task.task_type,
