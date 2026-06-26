@@ -101,6 +101,7 @@ from app.core.exceptions import (  # noqa: E402
 from app.core.rate_limit import limiter  # noqa: E402
 from app.docs import generate_db_schema, save_openapi_json  # noqa: E402
 from app.infrastructure.database import Base, async_engine, sync_engine  # noqa: E402
+from app.infrastructure.database.migrations import ensure_task_schema  # noqa: E402
 
 # Log application startup information
 environment = os.getenv("ENVIRONMENT", "production").lower()
@@ -137,6 +138,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(ensure_task_schema)
     logger.info("Database connection established")
 
     save_openapi_json(app)

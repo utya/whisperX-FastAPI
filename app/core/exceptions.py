@@ -222,6 +222,26 @@ class TaskNotFoundError(DomainError):
         )
 
 
+class TaskCancelledError(DomainError):
+    """Background task was cancelled by the client."""
+
+    def __init__(self, identifier: str, correlation_id: Optional[str] = None) -> None:
+        """
+        Initialize the task cancelled error.
+
+        Args:
+            identifier: The task identifier that was cancelled
+            correlation_id: Optional correlation ID for tracing
+        """
+        super().__init__(
+            message=f"Task with identifier '{identifier}' was cancelled",
+            code="TASK_CANCELLED",
+            user_message="The task was cancelled.",
+            correlation_id=correlation_id,
+            identifier=identifier,
+        )
+
+
 class SpeakerNotFoundError(DomainError):
     """Speaker embedding with given identifier not found."""
 

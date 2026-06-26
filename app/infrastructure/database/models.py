@@ -44,6 +44,12 @@ class Task(Base):
         comment="Universally unique identifier for each task",
     )
     status: Mapped[str] = mapped_column(String, comment="Current status of the task")
+    current_stage: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="Current pipeline stage for in-progress tasks"
+    )
+    partial_text: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="Raw transcript text after transcribe completes"
+    )
     result: Mapped[dict[str, Any] | None] = mapped_column(
         JSON, comment="JSON data representing the result of the task"
     )

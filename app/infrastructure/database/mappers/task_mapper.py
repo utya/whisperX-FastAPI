@@ -17,6 +17,8 @@ def to_domain(orm_task: ORMTask) -> DomainTask:
     return DomainTask(
         uuid=orm_task.uuid,
         status=orm_task.status,
+        current_stage=orm_task.current_stage,
+        partial_text=orm_task.partial_text,
         task_type=orm_task.task_type,
         result=orm_task.result,
         file_name=orm_task.file_name,
@@ -47,6 +49,8 @@ def to_orm(domain_task: DomainTask) -> ORMTask:
     orm_task = ORMTask(
         uuid=domain_task.uuid,
         status=domain_task.status,
+        current_stage=domain_task.current_stage,
+        partial_text=domain_task.partial_text,
         task_type=domain_task.task_type,
         result=domain_task.result,
         file_name=domain_task.file_name,

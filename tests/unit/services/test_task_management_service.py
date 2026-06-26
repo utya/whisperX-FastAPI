@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.core.exceptions import InvalidTaskStateError
 from app.domain.entities.task import Task
 from app.services.task_management_service import TaskManagementService
 
@@ -141,3 +142,43 @@ class TestTaskManagementService:
         await service.update_task_status("test-uuid-123", update_data)
 
         mock_repository.update.assert_awaited_once_with("test-uuid-123", update_data)
+
+    async def test_cancel_task_success(
+        self, service: TaskManagementService, mock_repository: AsyncMock
+    ) -> None:
+        """Test cancelling a queued or processing task."""
+        mock_repository.get_by_id.return_value = Task(
+            uuid="test-uuid-123",
+            status="processing",
+            task_type="full_process",
+        )
+
+        result = await service.cancel_task("test-uuid-123")
+
+        assert result is True
+        mock_repository.update.assert_awaited_once()
+        update_data = mock_repository.update.await_args.args[1]
+        assert update_data["status"] == "cancelled"
+
+    async def test_cancel_task_not_found(
+        self, service: TaskManagementService, mock_repository: AsyncMock
+    ) -> None:
+        """Test cancelling a missing task returns False."""
+        mock_repository.get_by_id.return_value = None
+
+        result = await service.cancel_task("missing")
+
+        assert result is False
+
+    async def test_cancel_task_invalid_state_raises(
+        self, service: TaskManagementService, mock_repository: AsyncMock
+    ) -> None:
+        """Test cancelling a completed task raises InvalidTaskStateError."""
+        mock_repository.get_by_id.return_value = Task(
+            uuid="test-uuid-123",
+            status="completed",
+            task_type="full_process",
+        )
+
+        with pytest.raises(InvalidTaskStateError):
+            await service.cancel_task("test-uuid-123")

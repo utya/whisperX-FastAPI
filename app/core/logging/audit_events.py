@@ -12,6 +12,7 @@ class AuditEventType(str, Enum):
     TASK_CREATED = "task.created"
     TASK_COMPLETED = "task.completed"
     TASK_DELETED = "task.deleted"
+    TASK_CANCELLED = "task.cancelled"
     FILE_UPLOADED = "file.uploaded"
     FILE_DOWNLOADED = "file.downloaded"
     FILE_DELETED = "file.deleted"

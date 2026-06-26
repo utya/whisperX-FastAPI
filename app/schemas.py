@@ -157,9 +157,12 @@ class TranscriptInput(BaseModel):
 class Result(BaseModel):
     """Model for a result with status, result data, metadata, and optional error."""
 
+    identifier: str | None = None
     status: str
+    current_stage: str | None = None
+    partial_text: str | None = None
     result: Any
-    metadata: Metadata
+    metadata: Metadata | None = None
     error: str | None
 
 
@@ -463,3 +466,14 @@ class TaskStatus(str, Enum):
     processing = "processing"
     completed = "completed"
     failed = "failed"
+    cancelled = "cancelled"
+
+
+class TaskStage(str, Enum):
+    """Enum for pipeline stages within a processing task."""
+
+    queued = "queued"
+    transcribing = "transcribing"
+    aligning = "aligning"
+    diarizing = "diarizing"
+    combining = "combining"
