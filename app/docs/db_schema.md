@@ -7,6 +7,10 @@
 | `id` | Unique identifier for each task (Primary Key) | INTEGER | False | None | True |
 | `uuid` | Universally unique identifier for each task | VARCHAR | False | None | False |
 | `status` | Current status of the task | VARCHAR | False | None | False |
+| `current_stage` | Current pipeline stage for in-progress tasks | VARCHAR | True | None | False |
+| `partial_text` | Raw transcript text after transcribe completes | TEXT | True | None | False |
+| `partial_speaker_count` | Distinct speaker count after diarization | INTEGER | True | None | False |
+| `partial_speakers` | Speaker labels after diarization | JSON | True | None | False |
 | `result` | JSON data representing the result of the task | JSON | True | None | False |
 | `file_name` | Name of the file associated with the task | VARCHAR | True | None | False |
 | `url` | URL of the file associated with the task | VARCHAR | True | None | False |
@@ -21,7 +25,6 @@
 | `error` | Error message, if any, associated with the task | VARCHAR | True | None | False |
 | `created_at` | Date and time of creation | DATETIME | False | None | False |
 | `updated_at` | Date and time of last update | DATETIME | False | None | False |
-
 ## Table: speaker_embeddings
 
 | Field | Description | Type | Nullable | Unique | Primary Key |

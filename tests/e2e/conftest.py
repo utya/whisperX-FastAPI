@@ -115,6 +115,7 @@ def client(
     import app.services.audio_processing_service as audio_svc_module
     import app.services.whisperx_wrapper_service as whisperx_svc_module
     from app.infrastructure.database.models import Base
+    from app.infrastructure.database.migrations import ensure_task_schema
 
     if request.param == "sqlite":
         db_file = tmp_path_factory.mktemp("e2e") / "test.db"
@@ -145,6 +146,7 @@ def client(
     async def _create_tables() -> None:
         async with async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(ensure_task_schema)
         await async_engine.dispose()
 
     asyncio.run(_create_tables())

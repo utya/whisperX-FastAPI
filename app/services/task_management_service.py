@@ -1,7 +1,9 @@
 """Service for task management operations."""
 
+from datetime import datetime, timezone
 from typing import Any
 
+from app.core.exceptions import InvalidTaskStateError
 from app.core.logging import logger
 from app.core.logging.audit_logger import AuditLogger
 from app.domain.entities.task import Task
@@ -101,6 +103,45 @@ class TaskManagementService:
             logger.warning("Task not found for deletion: %s", identifier)
 
         return result
+
+    async def cancel_task(self, identifier: str) -> bool:
+        """Cancel a running or queued task by its identifier.
+
+        Cooperative cancellation: the background worker checks the cancelled
+        status between pipeline stages. Active GPU operations finish first.
+
+        Args:
+            identifier: The UUID of the task to cancel
+
+        Returns:
+            True if the task was cancelled, False if not found
+
+        Raises:
+            InvalidTaskStateError: If the task is already in a terminal state
+        """
+        from app.core.task_cancellation import request_cancellation
+
+        logger.debug("Cancelling task with identifier: %s", identifier)
+        task = await self.repository.get_by_id(identifier)
+        if task is None:
+            logger.warning("Task not found for cancellation: %s", identifier)
+            return False
+
+        if task.status in ("completed", "failed", "cancelled"):
+            raise InvalidTaskStateError(
+                identifier=identifier,
+                current_state=task.status,
+                attempted_state="cancelled",
+            )
+
+        await self.repository.update(
+            identifier,
+            {"status": "cancelled", "end_time": datetime.now(timezone.utc)},
+        )
+        request_cancellation(identifier)
+        AuditLogger.log_task_cancelled(task_id=identifier)
+        logger.info("Task cancellation requested: %s", identifier)
+        return True
 
     async def update_task_status(
         self,

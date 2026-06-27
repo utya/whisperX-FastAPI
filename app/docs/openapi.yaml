@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: whisperX REST service
-  description: "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.ogg', '.mp3', '.amr', '.awb', '.oga', '.aac', '.m4a', '.wav', '.wma'}\n\n    VIDEO_EXTENSIONS = {'.mp4', '.mkv', '.mov', '.wmv', '.avi'}\n\n    "
+  description: "\n    # whisperX RESTful API\n\n    Welcome to the whisperX RESTful API! This API provides a suite of audio processing services to enhance and analyze your audio content.\n\n    ## Documentation:\n\n    For detailed information on request and response formats, consult the [WhisperX Documentation](https://github.com/m-bain/whisperX).\n\n    ## Services:\n\n    Speech-2-Text provides a suite of audio processing services to enhance and analyze your audio content. The following services are available:\n\n    1. Transcribe: Transcribe an audio/video  file into text.\n    2. Align: Align the transcript to the audio/video file.\n    3. Diarize: Diarize an audio/video file into speakers.\n    4. Combine Transcript and Diarization: Combine the transcript and diarization results.\n\n    ## Supported file extensions:\n    AUDIO_EXTENSIONS = {'.awb', '.ogg', '.mp3', '.amr', '.aac', '.m4a', '.wav', '.wma', '.oga'}\n\n    VIDEO_EXTENSIONS = {'.wmv', '.mp4', '.mov', '.avi', '.mkv'}\n\n    "
   version: 0.0.1
 paths:
   /speech-to-text:
@@ -958,6 +958,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Result'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Tasks Management
+      summary: Cancel Task
+      description: "Cancel a running or queued task by its identifier.\n\nCancellation is cooperative: the background worker stops between pipeline\nstages. An active GPU step may finish before the task is fully stopped.\n\nArgs:\n    identifier (str): The identifier of the task.\n    service: Task management service dependency.\n\nReturns:\n    Response: Confirmation message of task cancellation.\n\nRaises:\n    TaskNotFoundError: If the task is not found.\n    InvalidTaskStateError: If the task is already completed, failed, or cancelled."
+      operationId: cancel_task_task__identifier__delete
+      parameters:
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+            title: Identifier
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
         '422':
           description: Validation Error
           content:
@@ -2215,13 +2249,42 @@ components:
       description: Response model for API responses.
     Result:
       properties:
+        identifier:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Identifier
         status:
           type: string
           title: Status
+        current_stage:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Current Stage
+        partial_text:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Partial Text
+        partial_speaker_count:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          title: Partial Speaker Count
+        partial_speakers:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Partial Speakers
         result:
           title: Result
         metadata:
-          $ref: '#/components/schemas/Metadata'
+          anyOf:
+            - $ref: '#/components/schemas/Metadata'
+            - type: 'null'
         error:
           anyOf:
             - type: string
@@ -2231,7 +2294,6 @@ components:
       required:
         - status
         - result
-        - metadata
         - error
       title: Result
       description: Model for a result with status, result data, metadata, and optional error.

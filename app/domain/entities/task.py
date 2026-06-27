@@ -15,7 +15,11 @@ class Task:
 
     Attributes:
         uuid: Unique identifier for the task
-        status: Current status of the task (queued, processing, completed, failed)
+        status: Current status of the task (queued, processing, completed, failed, cancelled)
+        current_stage: Pipeline stage (queued, transcribing, diarizing, aligning, combining)
+        partial_text: Raw transcript text available after transcribe completes
+        partial_speaker_count: Number of distinct speakers after diarization
+        partial_speakers: Speaker labels (or identified names) after diarization, before alignment
         task_type: Type/category of the task
         result: JSON data representing the result of the task
         file_name: Name of the file associated with the task
@@ -35,6 +39,10 @@ class Task:
     uuid: str
     status: str
     task_type: str
+    current_stage: str | None = None
+    partial_text: str | None = None
+    partial_speaker_count: int | None = None
+    partial_speakers: list[str] | None = None
     result: dict[str, Any] | None = None
     file_name: str | None = None
     url: str | None = None
@@ -94,6 +102,21 @@ class Task:
         self.start_time = start_time
         self.updated_at = datetime.now(timezone.utc)
 
+    def mark_as_cancelled(self) -> None:
+        """Mark the task as cancelled by the client."""
+        self.status = "cancelled"
+        self.end_time = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(timezone.utc)
+
+    def is_cancelled(self) -> bool:
+        """
+        Check if task was cancelled.
+
+        Returns:
+            True if task status is 'cancelled', False otherwise
+        """
+        return self.status == "cancelled"
+
     def is_queued(self) -> bool:
         """
         Check if task is queued waiting to be processed.
@@ -140,6 +163,10 @@ class Task:
         return {
             "uuid": self.uuid,
             "status": self.status,
+            "current_stage": self.current_stage,
+            "partial_text": self.partial_text,
+            "partial_speaker_count": self.partial_speaker_count,
+            "partial_speakers": self.partial_speakers,
             "task_type": self.task_type,
             "result": self.result,
             "file_name": self.file_name,

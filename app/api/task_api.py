@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import get_task_management_service
 from app.api.mappers.task_mapper import TaskMapper
 from app.api.schemas.task_schemas import TaskListResponse
-from app.core.exceptions import TaskNotFoundError
+from app.core.exceptions import InvalidTaskStateError, TaskNotFoundError
 from app.core.logging import logger
 from app.schemas import Metadata, Response, Result
 from app.services.task_management_service import TaskManagementService
@@ -35,7 +35,7 @@ async def get_all_tasks_status(
     return TaskListResponse(tasks=task_summaries)
 
 
-@task_router.get("/task/{identifier}", tags=["Tasks Management"])
+@task_router.get("/task/{identifier}", tags=["Tasks Management"], response_model=Result)
 async def get_transcription_status(
     identifier: str,
     service: TaskManagementService = Depends(get_task_management_service),
@@ -62,7 +62,12 @@ async def get_transcription_status(
 
     logger.info("Status retrieved for task ID: %s", identifier)
     return Result(
+        identifier=task.uuid,
         status=task.status,
+        current_stage=task.current_stage,
+        partial_text=task.partial_text,
+        partial_speaker_count=task.partial_speaker_count,
+        partial_speakers=task.partial_speakers,
         result=task.result,
         metadata=Metadata(
             task_type=task.task_type,
@@ -78,6 +83,40 @@ async def get_transcription_status(
         ),
         error=task.error,
     )
+
+
+@task_router.delete("/task/{identifier}", tags=["Tasks Management"])
+async def cancel_task(
+    identifier: str,
+    service: TaskManagementService = Depends(get_task_management_service),
+) -> Response:
+    """
+    Cancel a running or queued task by its identifier.
+
+    Cancellation is cooperative: the background worker stops between pipeline
+    stages. An active GPU step may finish before the task is fully stopped.
+
+    Args:
+        identifier (str): The identifier of the task.
+        service: Task management service dependency.
+
+    Returns:
+        Response: Confirmation message of task cancellation.
+
+    Raises:
+        TaskNotFoundError: If the task is not found.
+        InvalidTaskStateError: If the task is already completed, failed, or cancelled.
+    """
+    logger.info("Cancelling task ID: %s", identifier)
+    try:
+        cancelled = await service.cancel_task(identifier)
+    except InvalidTaskStateError:
+        raise
+    if cancelled:
+        logger.info("Task cancellation requested: ID %s", identifier)
+        return Response(identifier=identifier, message="Task cancelled")
+    logger.error("Task not found: ID %s", identifier)
+    raise TaskNotFoundError(identifier)
 
 
 @task_router.delete("/task/{identifier}/delete", tags=["Tasks Management"])

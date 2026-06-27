@@ -48,7 +48,10 @@ from app.schemas import (
     VADOptions,
 )
 from app.services.file_service import FileService
-from app.transcript import filter_aligned_transcription
+from app.transcript import (
+    extract_raw_text_from_transcript,
+    filter_aligned_transcription,
+)
 
 _OPENAI_NON_JSON_RESPONSES: dict[int | str, dict[str, Any]] = {
     200: {
@@ -196,14 +199,7 @@ def _render_segments_as_subtitles(
 
 def _build_text_from_transcript(transcript: dict[str, Any]) -> str:
     """Build transcript text from the transcription response."""
-    text = str(transcript.get("text", "")).strip()
-    if text:
-        return text
-    return " ".join(
-        str(segment.get("text", "")).strip()
-        for segment in transcript.get("segments", [])
-        if str(segment.get("text", "")).strip()
-    )
+    return extract_raw_text_from_transcript(transcript)
 
 
 def _build_verbose_json_response(
