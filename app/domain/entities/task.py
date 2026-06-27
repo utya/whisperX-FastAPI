@@ -16,10 +16,10 @@ class Task:
     Attributes:
         uuid: Unique identifier for the task
         status: Current status of the task (queued, processing, completed, failed, cancelled)
-        current_stage: Pipeline stage (queued, transcribing, aligning, diarizing, combining)
+        current_stage: Pipeline stage (queued, transcribing, diarizing, aligning, combining)
         partial_text: Raw transcript text available after transcribe completes
         partial_speaker_count: Number of distinct speakers after diarization
-        partial_speakers: Speaker labels (or identified names) after diarization
+        partial_speakers: Speaker labels (or identified names) after diarization, before alignment
         task_type: Type/category of the task
         result: JSON data representing the result of the task
         file_name: Name of the file associated with the task

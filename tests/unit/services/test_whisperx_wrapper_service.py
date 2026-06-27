@@ -91,59 +91,72 @@ def test_process_audio_common_persists_partial_text_after_transcribe(
     mock_session_local: MagicMock,
     mock_release_gpu: MagicMock,
 ) -> None:
-    """Partial text and aligning stage are saved after transcribe completes."""
+    """Partial text and diarizing stage are saved after transcribe completes."""
     session = MagicMock()
     mock_session_local.return_value = session
     repository = MagicMock()
     repository.get_by_id.return_value = None
 
+    call_order: list[str] = []
+
+    def track_transcribe(*args: object, **kwargs: object) -> dict[str, object]:
+        call_order.append("transcribe")
+        return {
+            "language": "en",
+            "segments": [{"start": 0.0, "end": 1.0, "text": "Hello world."}],
+        }
+
+    def track_diarize(*args: object, **kwargs: object) -> DiarizationResult:
+        call_order.append("diarize")
+        return DiarizationResult(
+            segments=pd.DataFrame(
+                [
+                    {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"},
+                    {"start": 1.0, "end": 2.0, "speaker": "SPEAKER_01"},
+                ]
+            ),
+            speaker_embeddings=None,
+        )
+
+    def track_align(*args: object, **kwargs: object) -> dict[str, object]:
+        call_order.append("align")
+        return {
+            "segments": [
+                {
+                    "start": 0.0,
+                    "end": 1.0,
+                    "text": "Hello world.",
+                    "words": [
+                        {
+                            "word": "Hello",
+                            "start": 0.0,
+                            "end": 0.5,
+                            "score": 0.9,
+                        },
+                        {
+                            "word": "world.",
+                            "start": 0.5,
+                            "end": 1.0,
+                            "score": 0.9,
+                        },
+                    ],
+                }
+            ],
+            "word_segments": [],
+        }
+
+    def track_combine(*args: object, **kwargs: object) -> dict[str, object]:
+        call_order.append("combine")
+        return {"segments": [{"text": "Hello world.", "speaker": "SPEAKER_00"}]}
+
     transcription_svc = MagicMock()
-    transcription_svc.transcribe.return_value = {
-        "language": "en",
-        "segments": [{"start": 0.0, "end": 1.0, "text": "Hello world."}],
-    }
-
+    transcription_svc.transcribe.side_effect = track_transcribe
     alignment_svc = MagicMock()
-    alignment_svc.align.return_value = {
-        "segments": [
-            {
-                "start": 0.0,
-                "end": 1.0,
-                "text": "Hello world.",
-                "words": [
-                    {
-                        "word": "Hello",
-                        "start": 0.0,
-                        "end": 0.5,
-                        "score": 0.9,
-                    },
-                    {
-                        "word": "world.",
-                        "start": 0.5,
-                        "end": 1.0,
-                        "score": 0.9,
-                    },
-                ],
-            }
-        ],
-        "word_segments": [],
-    }
-
+    alignment_svc.align.side_effect = track_align
     diarization_svc = MagicMock()
-    diarization_svc.diarize.return_value = DiarizationResult(
-        segments=pd.DataFrame(
-            [
-                {"start": 0.0, "end": 1.0, "speaker": "SPEAKER_00"},
-                {"start": 1.0, "end": 2.0, "speaker": "SPEAKER_01"},
-            ]
-        ),
-        speaker_embeddings=None,
-    )
-
+    diarization_svc.diarize.side_effect = track_diarize
     speaker_svc = MagicMock()
-    speaker_svc.assign_speakers.return_value = {
-        "segments": [{"text": "Hello world.", "speaker": "SPEAKER_00"}]
-    }
+    speaker_svc.assign_speakers.side_effect = track_combine
 
     with patch(
         "app.services.whisperx_wrapper_service.SyncSQLAlchemyTaskRepository",
@@ -164,7 +177,7 @@ def test_process_audio_common_persists_partial_text_after_transcribe(
     )
     assert (
         partial_update.kwargs["update_data"]["current_stage"]
-        == TaskStage.aligning.value
+        == TaskStage.diarizing.value
     )
 
     speaker_update = next(
@@ -174,12 +187,14 @@ def test_process_audio_common_persists_partial_text_after_transcribe(
     )
     assert (
         speaker_update.kwargs["update_data"]["current_stage"]
-        == TaskStage.combining.value
+        == TaskStage.aligning.value
     )
     assert speaker_update.kwargs["update_data"]["partial_speakers"] == [
         "SPEAKER_00",
         "SPEAKER_01",
     ]
+
+    assert call_order == ["transcribe", "diarize", "align", "combine"]
 
 
 @pytest.mark.unit
@@ -278,6 +293,7 @@ def test_process_audio_common_stops_when_cancelled_after_transcribe(
         "segments": [{"start": 0.0, "end": 1.0, "text": "Stop here."}],
     }
     alignment_svc = MagicMock()
+    diarization_svc = MagicMock()
 
     request_cancellation("task-cancel")
 
@@ -290,12 +306,13 @@ def test_process_audio_common_stops_when_cancelled_after_transcribe(
                 _build_params("task-cancel"),
                 transcription_service=transcription_svc,
                 alignment_service=alignment_svc,
-                diarization_service=MagicMock(),
+                diarization_service=diarization_svc,
                 speaker_service=MagicMock(),
             )
         finally:
             clear_cancellation("task-cancel")
 
+    diarization_svc.diarize.assert_not_called()
     alignment_svc.align.assert_not_called()
 
 

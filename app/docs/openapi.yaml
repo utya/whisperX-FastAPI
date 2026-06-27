@@ -2267,6 +2267,18 @@ components:
             - type: string
             - type: 'null'
           title: Partial Text
+        partial_speaker_count:
+          anyOf:
+            - type: integer
+            - type: 'null'
+          title: Partial Speaker Count
+        partial_speakers:
+          anyOf:
+            - items:
+                type: string
+              type: array
+            - type: 'null'
+          title: Partial Speakers
         result:
           title: Result
         metadata:

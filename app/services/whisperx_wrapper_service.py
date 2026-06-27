@@ -385,33 +385,9 @@ def process_audio_common(
             _update_stage(
                 repository,
                 params.identifier,
-                TaskStage.aligning,
+                TaskStage.diarizing,
                 partial_text=partial_text,
             )
-            _ensure_not_cancelled(repository, params.identifier)
-
-            logger.debug(
-                "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
-                params.alignment_params.align_model,
-                params.alignment_params.interpolate_method,
-                params.alignment_params.return_char_alignments,
-                segments_before_alignment["language"],
-            )
-            segments_transcript = alignment_svc.align(
-                transcript=segments_before_alignment["segments"],
-                audio=params.audio,
-                language_code=segments_before_alignment["language"],
-                device=params.whisper_model_params.device.value,
-                align_model=params.alignment_params.align_model,
-                interpolate_method=params.alignment_params.interpolate_method,
-                return_char_alignments=params.alignment_params.return_char_alignments,
-            )
-            transcript = AlignedTranscription(**segments_transcript)
-            # removing words within each segment that have missing start, end, or score values
-            filtered_transcript = filter_aligned_transcription(transcript)
-            transcript_dict = filtered_transcript.model_dump()
-
-            _update_stage(repository, params.identifier, TaskStage.diarizing)
             _ensure_not_cancelled(repository, params.identifier)
 
             logger.debug(
@@ -454,10 +430,34 @@ def process_audio_common(
             _update_stage(
                 repository,
                 params.identifier,
-                TaskStage.combining,
+                TaskStage.aligning,
                 partial_speaker_count=diarization_result.speaker_count(),
                 partial_speakers=speaker_labels,
             )
+            _ensure_not_cancelled(repository, params.identifier)
+
+            logger.debug(
+                "Alignment parameters - align_model: %s, interpolate_method: %s, return_char_alignments: %s, language_code: %s",
+                params.alignment_params.align_model,
+                params.alignment_params.interpolate_method,
+                params.alignment_params.return_char_alignments,
+                segments_before_alignment["language"],
+            )
+            segments_transcript = alignment_svc.align(
+                transcript=segments_before_alignment["segments"],
+                audio=params.audio,
+                language_code=segments_before_alignment["language"],
+                device=params.whisper_model_params.device.value,
+                align_model=params.alignment_params.align_model,
+                interpolate_method=params.alignment_params.interpolate_method,
+                return_char_alignments=params.alignment_params.return_char_alignments,
+            )
+            transcript = AlignedTranscription(**segments_transcript)
+            # removing words within each segment that have missing start, end, or score values
+            filtered_transcript = filter_aligned_transcription(transcript)
+            transcript_dict = filtered_transcript.model_dump()
+
+            _update_stage(repository, params.identifier, TaskStage.combining)
             _ensure_not_cancelled(repository, params.identifier)
 
             logger.debug("Starting to combine transcript with diarization results")

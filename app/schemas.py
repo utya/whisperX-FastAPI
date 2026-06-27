@@ -476,6 +476,6 @@ class TaskStage(str, Enum):
 
     queued = "queued"
     transcribing = "transcribing"
-    aligning = "aligning"
     diarizing = "diarizing"
+    aligning = "aligning"
     combining = "combining"

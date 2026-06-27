@@ -119,7 +119,7 @@ flowchart TD
         STT["POST /speech-to-text<br/>POST /speech-to-text-url"]
         SVC["POST /service/transcribe<br/>POST /service/align<br/>POST /service/diarize<br/>POST /service/combine"]
         BG{{"Background task<br/>WhisperX pipeline"}}
-        TASK["GET /task/all<br/>GET /task/{identifier}<br/>DELETE /task/{identifier}/delete"]
+        TASK["GET /task/all<br/>GET /task/{identifier}<br/>DELETE /task/{identifier}<br/>DELETE /task/{identifier}/delete"]
     end
 
     subgraph SyncAPI ["OpenAI-compatible API — synchronous"]
@@ -164,6 +164,18 @@ endpoints just like the asynchronous ones. Both paths share the same GPU semapho
 The `/speakers` endpoints provide CRUD, similarity search, and identification over speaker
 embeddings persisted in the same database. Diarization tasks can optionally identify
 against, or auto-store into, these embeddings (`identify_speakers` / `auto_store_speakers`).
+
+Full-process tasks (`POST /speech-to-text`) expose progressive results while the pipeline
+runs. Poll `GET /task/{identifier}` and read:
+
+| Field | Available after | Meaning |
+| --- | --- | --- |
+| `partial_text` | transcribe | Raw transcript text (summary preview) |
+| `partial_speakers` | diarize | Speaker labels or identified names from the DB |
+| `result` | completed | Full aligned transcript with per-word speakers |
+
+Pipeline order: `transcribing` → `diarizing` → `aligning` → `combining`. Cancel an
+in-flight job with `DELETE /task/{identifier}` (cooperative stop between stages).
 
 Task status and results are stored in a database via async SQLAlchemy. The DB connection
 is configured with `DB_URL` (default: `sqlite:///records.db`).
